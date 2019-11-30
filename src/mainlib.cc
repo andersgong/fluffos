@@ -4,7 +4,9 @@
 
 #include <iostream>  // for cout
 #include <locale.h>  // for setlocale, LC_ALL
-#include <signal.h>  // for signal, SIG_DFL, SIGABRT, etc
+#ifdef HAVE_SIGNAL_H
+#include <signal.h>  //  for signal, SIG_DFL, SIGABRT, etc
+#endif
 #include <stddef.h>  // for size_t
 #include <stdio.h>   // for fprintf, stderr, printf, etc
 #include <stdlib.h>  // for exit
@@ -28,11 +30,11 @@
 #include <jemalloc/jemalloc.h>  // for mallctl
 #endif
 
-#include "packages/core/dns.h"  // for init_dns_event_base.
-#include "vm/vm.h"              // for push_constant_string, etc
-#include "comm.h"               // for init_user_conn
-#include "backend.h"            // for backend();
-#include "thirdparty/backward-cpp/backward.hpp" // for backtracing
+#include "packages/core/dns.h"                   // for init_dns_event_base.
+#include "vm/vm.h"                               // for push_constant_string, etc
+#include "comm.h"                                // for init_user_conn
+#include "backend.h"                             // for backend();
+#include "thirdparty/backward-cpp/backward.hpp"  // for backtracing
 
 // from lex.cc
 extern void print_all_predefines();
@@ -116,7 +118,8 @@ void print_version_and_time() {
 #elif BACKWARD_HAS_BFD == 1
   std::cout << "Backtrace support: libbfd." << std::endl;
 #else
-  std::cout << "libdw or libbfd is not found, you will only get very limited crash stacktrace." << std::endl;
+  std::cout << "libdw or libbfd is not found, you will only get very limited crash stacktrace."
+            << std::endl;
 #endif
 }
 
@@ -169,13 +172,16 @@ void attempt_shutdown(int sig) {
   // Print backtrace
   {
     using namespace backward;
-    StackTrace st; st.load_here(64);
+    StackTrace st;
+    st.load_here(64);
     Printer p;
     p.object = true;
     p.color_mode = ColorMode::automatic;
     p.address = true;
     p.print(st, stderr);
   }
+
+  // Attempt to call crash()
   fatal(msg);
 }
 
@@ -184,10 +190,11 @@ void init_locale() {
   // Verify locale is UTF8, complain otherwise
   std::string current_locale = setlocale(LC_ALL, nullptr);
   std::transform(current_locale.begin(), current_locale.end(), current_locale.begin(),
-                 [](unsigned char c){ return std::tolower(c); });
+                 [](unsigned char c) { return std::tolower(c); });
 #ifndef _WIN32
   if (current_locale.find(".utf-8") == std::string::npos) {
-    std::cerr << "Your locale '" << current_locale << "' is not UTF8 compliant, you will likely run into issues." << std::endl;
+    std::cerr << "Your locale '" << current_locale
+              << "' is not UTF8 compliant, you will likely run into issues." << std::endl;
   }
 #endif
 }
@@ -200,7 +207,6 @@ void init_tz() {
 #endif
 }
 }  // namespace
-
 
 struct event_base *init_main(int argc, char **argv) {
   init_locale();
@@ -284,8 +290,9 @@ int driver_main(int argc, char **argv) {
 #ifndef __WIN32
   // register crash handlers
   backward::SignalHandling sh;
-  if(!sh.loaded()) {
-    std::cout << "Warning: Signal handler installation failed, not backtrace on crash!" << std::endl;
+  if (!sh.loaded()) {
+    std::cout << "Warning: Signal handler installation failed, not backtrace on crash!"
+              << std::endl;
   }
 #endif
   init_win32();
@@ -313,12 +320,12 @@ int driver_main(int argc, char **argv) {
           debug_message("Calling master::flag(\"%s\")...\n", argv[i] + 2);
           push_constant_string(argv[i] + 2);
           auto ret = safe_apply_master_ob(APPLY_FLAG, 1);
-          if (ret == (svalue_t*)-1 || ret == nullptr || MudOS_is_being_shut_down) {
+          if (ret == (svalue_t *)-1 || ret == nullptr || MudOS_is_being_shut_down) {
             debug_message("Shutdown by master object.\n");
             return -1;
           }
         }
-        continue;
+          continue;
         case 'd':
           if (argv[i][2]) {
             debug_level_set(&argv[i][2]);

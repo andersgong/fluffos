@@ -52,7 +52,7 @@ extern int NUM_OPTION_DEFS;
 
 #define NELEM(a) (sizeof(a) / sizeof((a)[0]))
 
-#define LEX_EOF ((unsigned char)EOF)
+#define LEX_EOF ((unsigned char)0)
 
 char lex_ctype[256] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -65,6 +65,9 @@ char lex_ctype[256] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 #define is_wspace(c) lex_ctype[(unsigned char)(c)]
+
+#define SKIPWHITE \
+  while (is_wspace((unsigned char)*p) && (*p != '\n')) p++
 
 int current_line;       /* line number in this file */
 int current_line_base;  /* number of lines from other files */
@@ -253,9 +256,9 @@ static void skip_comment(void);
 static void deltrail(char * /*sp*/);
 static void handle_pragma(char * /*str*/);
 static int cmygetc(void);
-static void refill(void);
+static void refill_on_continuation(void);
 static void refill_buffer(void);
-static int exgetc(void);
+static char exgetc(void);
 static int old_func(void);
 static ident_hash_elem_t *quick_alloc_ident_entry(void);
 
@@ -449,19 +452,17 @@ static void handle_endif(void) {
 #define LOR 18
 #define QMARK 19
 
-static char _optab[] = {0, 4, 0, 0, 0, 26, 56, 0, 0, 0,  18, 14, 0,  10, 0, 22, 0,  0, 0,
-                        0, 0, 0, 0, 0, 0,  0,  0, 0, 30, 50, 40, 74, 0,  0, 0,  0,  0, 0,
-                        0, 0, 0, 0, 0, 0,  0,  0, 0, 0,  0,  0,  0,  0,  0, 0,  0,  0, 0,
-                        0, 0, 0, 0, 0, 70, 0,  0, 0, 0,  0,  0,  0,  0,  0, 0,  0,  0, 0,
-                        0, 0, 0, 0, 0, 0,  0,  0, 0, 0,  0,  0,  0,  0,  0, 0,  63, 0, 1};
+static char optab[] = {0, 4, 0, 0, 0, 26, 56, 0, 0, 0,  18, 14, 0,  10, 0, 22, 0,  0, 0,
+                       0, 0, 0, 0, 0, 0,  0,  0, 0, 30, 50, 40, 74, 0,  0, 0,  0,  0, 0,
+                       0, 0, 0, 0, 0, 0,  0,  0, 0, 0,  0,  0,  0,  0,  0, 0,  0,  0, 0,
+                       0, 0, 0, 0, 0, 70, 0,  0, 0, 0,  0,  0,  0,  0,  0, 0,  0,  0, 0,
+                       0, 0, 0, 0, 0, 0,  0,  0, 0, 0,  0,  0,  0,  0,  0, 0,  63, 0, 1};
 static char optab2[] = {
     BNOT, 0,   0,   LNOT, '=', NEQ,  7, 0,   0,   UMINUS, 0, BMINUS, 10,   UPLUS, 0,   BPLUS,
     10,   0,   0,   MULT, 11,  0,    0, DIV, 11,  0,      0, MOD,    11,   0,     '<', LSHIFT,
     9,    '=', LEQ, 8,    0,   LESS, 8, 0,   '>', RSHIFT, 9, '=',    GEQ,  8,     0,   GREAT,
     8,    0,   '=', EQ,   7,   0,    0, 0,   '&', LAND,   3, 0,      BAND, 6,     0,   '|',
     LOR,  2,   0,   BOR,  4,   0,    0, XOR, 5,   0,      0, QMARK,  1};
-
-#define optab1 (_optab - ' ')
 
 static LPC_INT cond_get_exp(int priority) {
   int c;
@@ -492,7 +493,7 @@ static LPC_INT cond_get_exp(int priority) {
     }
 #endif
   } else if (ispunct(c)) {
-    if (!(x = optab1[c])) {
+    if (!(x = optab[c - ' '])) {
       lexerror("illegal character in #if");
       return 0;
     }
@@ -572,7 +573,7 @@ static LPC_INT cond_get_exp(int priority) {
       break;
     }
 #endif
-    if (!(x = optab1[c])) {
+    if (!(x = optab[c - ' '])) {
       break;
     }
     value2 = *outp++;
@@ -925,6 +926,10 @@ static int inc_open(char *buf, char *name, int check_local) {
     merge(name, buf);
     tmp = check_valid_path(buf, master_ob, "include", 0);
     if (tmp && (f = open(tmp, O_RDONLY)) != -1) {
+#ifdef _WIN32
+      // TODO: change everything to use fopen instead.
+      _setmode(f, _O_BINARY);
+#endif
       return f;
     }
   }
@@ -940,6 +945,10 @@ static int inc_open(char *buf, char *name, int check_local) {
     sprintf(buf, "%s/%s", inc_path[i], name);
     tmp = check_valid_path(buf, master_ob, "include", 0);
     if (tmp && (f = open(tmp, O_RDONLY)) != -1) {
+#ifdef _WIN32
+      // TODO: change everything to use fopen instead.
+      _setmode(f, _O_BINARY);
+#endif
       return f;
     }
   }
@@ -1370,8 +1379,8 @@ static int get_text_block(char *term) {
         len = 0;
       }
       // Remove trailing CR
-      if (text_line[curchunk][len-1] == '\r') {
-        text_line[curchunk][len-1] = '\0';
+      if (text_line[curchunk][len - 1] == '\r') {
+        text_line[curchunk][len - 1] = '\0';
         len = len - 1;
       }
       /*
@@ -1490,6 +1499,12 @@ static pragma_t our_pragmas[] = {{"strict_types", PRAGMA_STRICT_TYPES},
 static void handle_pragma(char *str) {
   int i;
   int no_flag;
+
+  // Ignore trailing whitespaces
+  char *p = &str[strlen(str) - 1];
+  while (iswspace(*p)) {
+    *p-- = '\0';
+  }
 
   if (strncmp(str, "no_", 3) == 0) {
     str += 3;
@@ -2148,13 +2163,15 @@ int yylex() {
           }
           if (sp) {
             *sp++ = 0;
-            while (uisspace(*sp)) {
+            while (is_wspace(*sp)) {
               sp++;
             }
           } else {
             sp = yyp;
           }
-          *yyp = 0;
+          *yyp = '\0';
+          // Deal with trailing \r
+          if (*(yyp - 1) == '\r') *(yyp - 1) = '\0';
           if (!strcmp("include", yytext)) {
             current_line++;
             if (c == LEX_EOF) {
@@ -3304,7 +3321,8 @@ static int cmygetc() {
   }
 }
 
-static void refill() {
+// Refill buffer for next line, used for dealing with macro continuation '\ '
+static void refill_on_continuation() {
   char *p;
   unsigned char c;
 
@@ -3321,8 +3339,15 @@ static void refill() {
   if ((c == '\n') && (outp == last_nl + 1)) {
     refill_buffer();
   }
-  p[-1] = ' ';
   *p = 0;
+  // Deal with possible trailing '\r'
+  if (p >= yytext + 2 && p[-2] == '\r' && p[-1] == '\n') {
+    p[-2] = ' ';
+    p[-1] = '\0';
+  } else {
+    // replace \n
+    p[-1] = ' ';
+  }
   nexpands = 0;
   current_line++;
 }
@@ -3421,7 +3446,7 @@ static void handle_define(char *yyt) {
       }
       if (!*p && p[-2] == '\\') {
         q -= 2;
-        refill();
+        refill_on_continuation();
         p = yytext;
       }
     }
@@ -3436,9 +3461,9 @@ static void handle_define(char *yyt) {
         lexerror("Macro text too long");
         return;
       }
-      if (!*p && p[-2] == '\\') {
+      if (!*p && p >= yytext + 2 && p[-2] == '\\') {  // we copied something
         q -= 2;
-        refill();
+        refill_on_continuation();
         p = yytext;
       }
     }
@@ -3878,7 +3903,7 @@ int expand_define(void) {
   while (is_wspace(c)); \
   outp--
 
-static int exgetc() {
+static char exgetc() {
   unsigned char c;
   char *yyp;
 

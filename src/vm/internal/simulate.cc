@@ -460,6 +460,10 @@ object_t *load_object(const char *lname, int callcreate) {
   }
 
   f = open(real_name, O_RDONLY);
+#ifdef _WIN32
+  // TODO: change everything to use fopen instead.
+  _setmode(f, _O_BINARY);
+#endif
   if (f == -1) {
     debug_perror("compile_file", real_name);
     error("Could not read the file '/%s'.\n", real_name);
@@ -1678,6 +1682,7 @@ void fatal(const char *fmt, ...) {
 
   in_fatal = 0;
 
+  signal(SIGABRT, SIG_DFL);
   abort();
 }
 
@@ -1941,7 +1946,7 @@ void error(const char *const fmt, ...) {
   va_end(args);
   err_buf[0] = '*'; /* all system errors get a * at the start */
 #ifdef ENABLE_DTRACE
-  if(FLUFFOS_ERROR_ENABLED()) {
+  if (FLUFFOS_ERROR_ENABLED()) {
     FLUFFOS_ERROR((char *)err_buf);
   }
 #endif

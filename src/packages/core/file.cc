@@ -426,11 +426,11 @@ char *read_file(const char *file, int start, int lines) {
     // Deal with CRLF.
     std::istringstream input(ptr_start);
     std::ostringstream output;
-    for (std::string line; std::getline(input, line);) {
+    for (std::string line; std::getline(input, line, '\n');) {
       if (ends_with(line, "\r")) {
         line = line.substr(0, line.length() - 1);
       }
-      output << line << std::endl;
+      output << line << "\n";
     }
     return string_copy(output.str().c_str(), "read file: CRLF result");
   }
@@ -690,73 +690,6 @@ again:
 
 static struct stat to_stats, from_stats;
 
-static int copy(const char *from, const char *to) {
-  int ifd;
-  int ofd;
-  char buf[1024 * 8];
-  int len; /* Number of bytes read into `buf'. */
-
-  if (!S_ISREG(from_stats.st_mode)) {
-    return 1;
-  }
-  if (unlink(to) && errno != ENOENT) {
-    return 1;
-  }
-  ifd = open(from, O_RDONLY);
-  if (ifd < 0) {
-    return errno;
-  }
-  ofd = open(to, O_WRONLY | O_CREAT | O_TRUNC, 0666);
-  if (ofd < 0) {
-    close(ifd);
-    return 1;
-  }
-#ifndef __WIN32
-  if (fchmod(ofd, from_stats.st_mode & 0777)) {
-    close(ifd);
-    close(ofd);
-    unlink(to);
-    return 1;
-  }
-#endif
-  while ((len = read(ifd, buf, sizeof(buf))) > 0) {
-    int wrote = 0;
-    char *bp = buf;
-
-    do {
-      wrote = write(ofd, bp, len);
-      if (wrote < 0) {
-        close(ifd);
-        close(ofd);
-        unlink(to);
-        return 1;
-      }
-      bp += wrote;
-      len -= wrote;
-    } while (len > 0);
-  }
-  if (len < 0) {
-    close(ifd);
-    close(ofd);
-    unlink(to);
-    return 1;
-  }
-  if (close(ifd) < 0) {
-    close(ofd);
-    return 1;
-  }
-  if (close(ofd) < 0) {
-    return 1;
-  }
-#ifdef FCHMOD_MISSING
-  if (chmod(to, from_stats.st_mode & 0777)) {
-    return 1;
-  }
-#endif
-
-  return 0;
-}
-
 /* Move FROM onto TO.  Handles cross-filesystem moves.
    If TO is a directory, FROM must be also.
    Return 0 if successful, 1 if an error occurred.  */
@@ -808,9 +741,8 @@ static int do_move(const char *from, const char *to, int flag) {
     return 1;
   }
   /* rename failed on cross-filesystem link.  Copy the file instead. */
-
   if (flag == F_RENAME) {
-    if (copy(from, to)) {
+    if (copy_file(from, to)) {
       return 1;
     }
     if (unlink(from)) {
@@ -973,8 +905,9 @@ int copy_file(const char *from, const char *to) {
   auto base = fs::current_path();
   fs::copy_file(base / from, base / to, fs::copy_options::overwrite_existing, error_code);
 
-  if(error_code) {
-    debug_message("Error copying file from /%s to /%s, Error: %s", from, to, error_code.message().c_str());
+  if (error_code) {
+    debug_message("Error copying file from /%s to /%s, Error: %s", from, to,
+                  error_code.message().c_str());
     return -1;
   }
 

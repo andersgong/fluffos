@@ -65,7 +65,7 @@ int svalue_save_size(svalue_t *v) {
       int size = 0;
 
       while ((c = *cp++)) {
-        if (c == '\\' || c == '"') {
+        if (c == '\\' || c == '"' || c == '\r') {
           size++;
         }
         size++;
@@ -145,7 +145,7 @@ void save_svalue(svalue_t *v, char **buf) {
 
       *cp++ = '"';
       while ((c = *str++)) {
-        if (c == '"' || c == '\\') {
+        if (c == '"' || c == '\\' || c == '\r') {
           *cp++ = '\\';
           *cp++ = c;
         } else {
@@ -1555,7 +1555,8 @@ int save_object(object_t *ob, const char *file, int save_zeros) {
     auto base = fs::current_path(error_code);
     fs::rename(base / fs::path(tmp_name), base / fs::path(file), error_code);
     if (error_code) {
-      debug_message("Failed to rename /%s to /%s: Error: %d (%s)\n", tmp_name, file, error_code.value(), error_code.message().c_str());
+      debug_message("Failed to rename /%s to /%s: Error: %d (%s)\n", tmp_name, file,
+                    error_code.value(), error_code.message().c_str());
       std::remove(tmp_name);
       debug_message("Failed to save object!\n");
     } else if (save_compressed) {
@@ -1642,10 +1643,8 @@ void clear_non_statics(object_t *ob) {
 
 void restore_object_from_buff(object_t *ob, const char *buf, int noclear) {
   std::istringstream input(buf);
-  for (std::string line; std::getline(input, line);) {
-    if (ends_with(line, "\r")) {
-      line = line.substr(0, line.length() - 1);
-    }
+  for (std::string line; std::getline(input, line, '\n');) {
+    DEBUG_CHECK(ends_with(line, "\r"), "restore_object_from_buff: have trailing \\r!");
     // FIXME: some restore function needs to modify string inplace.
     std::vector<char> tmp(line.length() + 1);
     std::copy(line.begin(), line.end(), tmp.begin());
@@ -1693,7 +1692,7 @@ int restore_object(object_t *ob, const char *file, int noclear) {
     error("restore_object: read permission denied: %s.\n", filename.c_str());
   }
 
-  // We always use zlib functions here and below, as it handls non-gzip file as wel.
+  // We always use zlib functions here and below, as it handles non-gzip file as well.
   gzFile gzf = gzopen(file, "rb");
   if (gzf == nullptr) {
     // Compat: do not return error, if there are no save files.

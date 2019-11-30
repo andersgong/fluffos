@@ -44,8 +44,6 @@
 #undef NO_SHADOWS
 #undef USE_ICONV
 #undef IPV6
-#undef DTRACE
-
 
 /****************************************************************************
  *                              PACKAGES                                    *
@@ -63,5 +61,8 @@
 // configs for PACKAGE_UIDS
 #define AUTO_SETEUID
 #undef AUTO_TRUST_BACKBONE
+
+// configs for PACKAGE_PARSE
+#define PARSE_DEBUG /* Only take effect in DEBUG build */
 
 #endif /* _LOCAL_OPTIONS_H_ */
