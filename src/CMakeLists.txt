@@ -110,7 +110,7 @@ if (${CMAKE_C_COMPILER_ID} STREQUAL "GNU" OR ${CMAKE_C_COMPILER_ID} STREQUAL "Cl
     "-Wextra"
     "-Wformat"
     "-Werror=format-security"
-    "-Werror=implicit-function-declaration"
+    $<$<COMPILE_LANGUAGE:C>:-Werror=implicit-function-declaration>
     # Turn off some warnings from GCC.
     "-Wno-char-subscripts"
     "-Wno-sign-compare"
@@ -273,7 +273,6 @@ set(GENERATRED_GRAMMAR_FILES
 set(SRC
   "backend.cc"
   "comm.cc"
-  "fliconv.cc"
   "main.cc"
   "mainlib.cc"
   "user.cc"
