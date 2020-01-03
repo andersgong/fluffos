@@ -9,11 +9,11 @@
 #include "tracing/tracing.autogen.h"
 #endif
 #include "vm/internal/base/machine.h"
-#include "vm/internal/compiler/icode.h"  // for PUSH_WHAT
-#include "vm/internal/compiler/lex.h"    // for insstr, FIXME
-#include "packages/core/sprintf.h"       // FIXME
-#include "packages/core/regexp.h"        // FIXME
-#include "packages/ops/ops.h"            // FIXME
+#include "compiler/internal/icode.h"  // for PUSH_WHAT
+#include "compiler/internal/lex.h"    // for insstr, FIXME
+#include "packages/core/sprintf.h"    // FIXME
+#include "packages/core/regexp.h"     // FIXME
+#include "packages/ops/ops.h"         // FIXME
 
 int call_origin = 0;
 error_context_t *current_error_context = nullptr;
@@ -1123,11 +1123,11 @@ void pop_3_elems() {
   free_svalue(sp--, "pop_3_elems");
 }
 
-void bad_arg(int arg, int instr) {
+[[noreturn]] void bad_arg(int arg, int instr) {
   error("Bad Argument %d to %s()\n", arg, query_instr_name(instr));
 }
 
-void bad_argument(svalue_t *val, int type, int arg, int instr) {
+[[noreturn]] void bad_argument(svalue_t *val, int type, int arg, int instr) {
   outbuffer_t outbuf;
   int flag = 0;
   int j = TYPE_CODES_START;
@@ -4365,6 +4365,7 @@ int inter_sscanf(svalue_t *arg, svalue_t *s0, svalue_t *s1, int num_arg) {
                 tmp++;
                 continue;
               }
+              // fall through
             case '\0':
               error("Bad regexp format: '%%%s' in sscanf format string\n", fmt);
             case '(':
@@ -4494,6 +4495,7 @@ int inter_sscanf(svalue_t *arg, svalue_t *s0, svalue_t *s1, int num_arg) {
                   tmp++;
                   continue;
                 }
+                // fall through
               case '\0':
                 error("Bad regexp format : '%%%s' in sscanf format string\n", fmt);
               case '(':
@@ -4571,6 +4573,7 @@ int inter_sscanf(svalue_t *arg, svalue_t *s0, svalue_t *s1, int num_arg) {
       switch (fmt[-1]) {
         case 'x':
           base = 16;
+          // fall through
         case 'd': {
           num = strtoll(const_cast<char *>(in_string), const_cast<char **>(&in_string), base);
           /* We already knew it would be matched - Sym */

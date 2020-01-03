@@ -182,7 +182,6 @@ void f_cache_stats(void) {
 void f__call_other(void) {
   svalue_t *arg;
   const char *funcname;
-  int i;
   int num_arg = st_num_arg;
   object_t *ob;
 
@@ -585,23 +584,6 @@ void f_environment(void) {
   } else {
     push_number(0);
   }
-}
-#endif
-
-#ifdef F_EXEC
-void f_exec(void) {
-  int i;
-
-  i = replace_interactive((sp - 1)->u.ob, sp->u.ob);
-
-  /* They might have been destructed */
-  if (sp->type == T_OBJECT) {
-    free_object(&sp->u.ob, "f_exec:1");
-  }
-  if ((--sp)->type == T_OBJECT) {
-    free_object(&sp->u.ob, "f_exec:2");
-  }
-  put_number(i);
 }
 #endif
 
@@ -3387,9 +3369,11 @@ void f_defer() {
 
 #ifdef F_CRYPT
 void f_crypt(void) {
-  char salt[3];
+  const int SHA512_PREFIX_LEN = 3;
+  const int SHA512_SALT_LEN = 16;
+  char salt[SHA512_PREFIX_LEN + SHA512_SALT_LEN + 1];
   const char *saltp = nullptr;
-  const char *choice = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ./";
+  const char *choice = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789./";
 
   if (sp->type == T_STRING) {
     // Support $1$, $2a$ (a,x,y), $5$, $6$
@@ -3407,7 +3391,11 @@ void f_crypt(void) {
         }
       }
     } else if (SVALUE_STRLEN(sp) >= 2) {
-      // Old f_crypt only use first two key.
+      // Compat: Old f_crypt only use first two character as key.
+      debug_message(
+          "old crypt() password detected, It is only using first 2 character as key and ignore "
+          "password beyond 8 characters, please upgrade to SHA512 using crypt(password) "
+          "immediately.\n");
       salt[0] = sp->u.string[0];
       salt[1] = sp->u.string[1];
       salt[2] = '\0';
@@ -3416,9 +3404,13 @@ void f_crypt(void) {
   }
 
   if (saltp == nullptr) {
-    salt[0] = choice[random_number(strlen(choice))];
-    salt[1] = choice[random_number(strlen(choice))];
-    salt[2] = '\0';
+    salt[0] = '$';
+    salt[1] = '6';
+    salt[2] = '$';
+    for (auto i = 0; i < SHA512_SALT_LEN; i++) {
+      salt[3 + i] = choice[random_number(strlen(choice))];
+    }
+    salt[sizeof(salt) - 1] = '\0';
     saltp = salt;
   }
 
@@ -3453,7 +3445,9 @@ void f_oldcrypt(void) {
     salt[SALT_LEN] = 0;
     p = salt;
   }
-
+  debug_message(
+      "oldcrypt() is deprecated! it is using MD5 and unsafe, please upgrade your code to use "
+      "crypt(password).\n");
   res = string_copy(custom_crypt((sp - 1)->u.string, p, nullptr), "f_oldcrypt");
   pop_2_elems();
   push_malloced_string(res);

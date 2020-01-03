@@ -1,5 +1,5 @@
-# v2019 is targeted
-cmake_minimum_required(VERSION 3.10)   # CMake version check
+# v2019 is targeted to ubuntu 18.04 LTS, it ships with cmake 3.10
+cmake_minimum_required(VERSION 3.10)
 
 project(fluffos VERSION 2019
         DESCRIPTION "FluffOS LPC Driver"
@@ -25,9 +25,10 @@ if(WIN32)
 endif()
 
 message("FluffOS ${PROJECT_VERSION} (${CMAKE_BUILD_TYPE})")
-message("  C: '${CMAKE_C_COMPILER}'")
-message("  C++: '${CMAKE_CXX_COMPILER}'")
-message("Building on: '${CMAKE_HOST_SYSTEM}' for '${CMAKE_SYSTEM_NAME}'")
+foreach(lang C CXX)
+message("  ${lang}: '${CMAKE_${lang}_COMPILER}' (${CMAKE_${lang}_COMPILER_ID} ${CMAKE_${lang}_COMPILER_VERSION})")
+endforeach()
+message("Building on: '${CMAKE_HOST_SYSTEM}' for '${CMAKE_SYSTEM}'")
 message("Installing to ${CMAKE_INSTALL_PREFIX}")
 
 add_subdirectory(src)

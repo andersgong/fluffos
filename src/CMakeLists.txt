@@ -32,10 +32,13 @@ option(DEBUG OFF)
 option(DEBUGMALLOC ${DEBUG})
 # End of list of compile options.
 
-# Globally enforce CXX17
+# Globally enforce CXX17 and C11
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
 
 # Setup include directoires
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
@@ -47,7 +50,7 @@ endforeach ()
 
 set(CMAKE_ENABLE_EXPORTS ON)
 
-if (${CMAKE_C_COMPILER_ID} STREQUAL "GNU" OR ${CMAKE_C_COMPILER_ID} STREQUAL "Clang" OR ${CMAKE_C_COMPILER_ID} STREQUAL "AppleClang")
+if (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU" OR ${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" OR ${CMAKE_CXX_COMPILER_ID} STREQUAL "AppleClang")
   foreach (lang C CXX)
     set(CMAKE_${lang}_FLAGS_DEBUG "-O0 -g3")
     # include (minimal) debug information even for RELEASE build.
@@ -58,7 +61,6 @@ if (${CMAKE_C_COMPILER_ID} STREQUAL "GNU" OR ${CMAKE_C_COMPILER_ID} STREQUAL "Cl
   # Compile options
   add_compile_options(
     "-fno-omit-frame-pointer"
-    # We use GNU extensions
     "-D_GNU_SOURCE"
     # strict aliasing is bad!
     "-fno-strict-aliasing"
@@ -114,9 +116,8 @@ if (${CMAKE_C_COMPILER_ID} STREQUAL "GNU" OR ${CMAKE_C_COMPILER_ID} STREQUAL "Cl
     # Turn off some warnings from GCC.
     "-Wno-char-subscripts"
     "-Wno-sign-compare"
-    #"-Wno-return-type"
     "-Wno-unused-parameter"
-    # TODO: Code has a lot of implict zero initilizations
+    # TODO: Code has a lot of implicit zero initializations
     "-Wno-missing-field-initializers"
     # features
     "-fdiagnostics-show-option"
@@ -171,6 +172,24 @@ endif ()
 
 add_subdirectory(thirdparty/filesystem EXCLUDE_FROM_ALL)
 include_directories(thirdparty/filesystem/include)
+
+set(LWS_WITH_SHARED OFF CACHE BOOL "" FORCE)
+set(LWS_WITHOUT_TESTAPPS ON CACHE BOOL "" FORCE)
+set(LWS_IPV6 ON CACHE BOOL "" FORCE)
+set(LWS_WITH_LIBEVENT ON CACHE BOOL "" FORCE)
+set(LWS_STATIC_PIC ON CACHE BOOL "" FORCE)
+set(LWS_WITH_DIR OFF CACHE BOOL "" FORCE)
+set(LWS_WITH_SSL OFF CACHE BOOL "" FORCE)
+set(LWS_WITHOUT_TESTAPPS ON CACHE BOOL "" FORCE)
+set(LWS_WITHOUT_TEST_SERVER ON CACHE BOOL "" FORCE)
+set(LWS_WITHOUT_TEST_SERVER_EXTPOLL ON CACHE BOOL "" FORCE)
+set(LWS_WITHOUT_TEST_PING ON CACHE BOOL "" FORCE)
+set(LWS_WITHOUT_TEST_CLIENT ON CACHE BOOL "" FORCE)
+set(LWS_WITH_LEJP OFF CACHE BOOL "" FORCE)
+set(LWS_WITH_LEJP_CONF OFF CACHE BOOL "" FORCE)
+add_subdirectory(thirdparty/libwebsockets EXCLUDE_FROM_ALL)
+include_directories("thirdparty/libwebsockets/include" SYSTEM)
+include_directories("${CMAKE_CURRENT_BINARY_DIR}/thirdparty/libwebsockets")
 
 INCLUDE(CheckIncludeFileCXX)
 # usage: CHECK_INCLUDE_FILES (<header> <RESULT_VARIABLE> )
@@ -256,8 +275,8 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT "grammar.autogen.y"
-  COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/tools/make_grammar.sh" "${CMAKE_CURRENT_SOURCE_DIR}/../" "${CMAKE_CURRENT_SOURCE_DIR}/vm/internal/compiler/grammar.y.pre" "${CMAKE_CXX_COMPILER}" "-I${CMAKE_CURRENT_BINARY_DIR}" "-I${CMAKE_CURRENT_SOURCE_DIR}"
-  DEPENDS "tools/make_grammar.sh" "vm/internal/compiler/grammar.y.pre"
+  COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/tools/make_grammar.sh" "${CMAKE_CURRENT_SOURCE_DIR}/../" "${CMAKE_CURRENT_SOURCE_DIR}/compiler/internal/grammar.y.pre" "${CMAKE_CXX_COMPILER}" "-I${CMAKE_CURRENT_BINARY_DIR}" "-I${CMAKE_CURRENT_SOURCE_DIR}"
+  DEPENDS "tools/make_grammar.sh" "compiler/internal/grammar.y.pre"
 )
 
 find_package(BISON REQUIRED)
@@ -277,6 +296,8 @@ set(SRC
   "mainlib.cc"
   "user.cc"
   "net/telnet.cc"
+  "net/websocket.cc"
+  "net/ws_ascii.cc"
   "base/internal/debugmalloc.cc"
   "base/internal/external_port.cc"
   "base/internal/file.cc"
@@ -290,7 +311,12 @@ set(SRC
   "base/internal/stralloc.cc"
   "base/internal/strput.cc"
   "base/internal/strutils.cc"
-  "vm/internal/apply.cc"
+  "compiler/internal/compiler.cc"
+  "compiler/internal/generate.cc"
+  "compiler/internal/icode.cc"
+  "compiler/internal/lex.cc"
+  "compiler/internal/scratchpad.cc"
+  "compiler/internal/trees.cc"
   "vm/internal/base/apply_cache.cc"
   "vm/internal/base/array.cc"
   "vm/internal/base/buffer.cc"
@@ -301,12 +327,7 @@ set(SRC
   "vm/internal/base/object.cc"
   "vm/internal/base/program.cc"
   "vm/internal/base/svalue.cc"
-  "vm/internal/compiler/compiler.cc"
-  "vm/internal/compiler/generate.cc"
-  "vm/internal/compiler/icode.cc"
-  "vm/internal/compiler/lex.cc"
-  "vm/internal/compiler/scratchpad.cc"
-  "vm/internal/compiler/trees.cc"
+  "vm/internal/apply.cc"
   "vm/internal/eval_limit.cc"
   "vm/internal/posix_timers.cc"
   "vm/internal/master.cc"
@@ -358,6 +379,7 @@ if (ENABLE_DTRACE)
   target_link_libraries(driver PRIVATE tracing)
 endif ()
 
+target_link_libraries(driver PRIVATE ${LIBWEBSOCKETS_LIBRARIES_STATIC})
 # Third party libraries
 add_subdirectory(thirdparty/libtelnet EXCLUDE_FROM_ALL)
 target_link_libraries(driver PUBLIC libtelnet)
@@ -421,6 +443,9 @@ print_target_properties(driver)
 
 install(TARGETS driver
   RUNTIME DESTINATION bin)
+
+install(DIRECTORY www
+        DESTINATION bin)
 
 if (NOT WIN32)
   add_executable(portbind "portbind.cc")
