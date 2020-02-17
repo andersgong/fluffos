@@ -86,6 +86,7 @@ void set_tag(const void *ptr, int tag) {
 
 int MDfree(void *ptr) {
   unsigned long h;
+  int tmp;
   md_node_t *entry, **oentry;
 
   h = MD_HASH(ptr);

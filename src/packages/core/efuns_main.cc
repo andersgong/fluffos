@@ -182,6 +182,7 @@ void f_cache_stats(void) {
 void f__call_other(void) {
   svalue_t *arg;
   const char *funcname;
+  int i;
   int num_arg = st_num_arg;
   object_t *ob;
 
@@ -538,18 +539,17 @@ void f_enable_wizard(void) {
 #ifdef F_ERROR
 void f_error(void) {
   int l = SVALUE_STRLEN(sp);
+  char err_buf[2048];
+
   if (l && sp->u.string[l - 1] == '\n') {
     l--;
   }
-  const auto max_string_length = LARGEST_PRINTABLE_STRING;
-  l = std::min(l, max_string_length - 3);
-
-  // VLA
-  char err_buf[l + 3];
+  if (l > 2045) {
+    l = 2045;
+  }
 
   err_buf[0] = '*';
-  u8_strncpy(reinterpret_cast<uint8_t *>(err_buf + 1),
-             reinterpret_cast<const uint8_t *>(sp->u.string), l);
+  strncpy(err_buf + 1, sp->u.string, l);
   err_buf[l + 1] = '\n';
   err_buf[l + 2] = 0;
 
@@ -584,6 +584,23 @@ void f_environment(void) {
   } else {
     push_number(0);
   }
+}
+#endif
+
+#ifdef F_EXEC
+void f_exec(void) {
+  int i;
+
+  i = replace_interactive((sp - 1)->u.ob, sp->u.ob);
+
+  /* They might have been destructed */
+  if (sp->type == T_OBJECT) {
+    free_object(&sp->u.ob, "f_exec:1");
+  }
+  if ((--sp)->type == T_OBJECT) {
+    free_object(&sp->u.ob, "f_exec:2");
+  }
+  put_number(i);
 }
 #endif
 
@@ -1232,11 +1249,13 @@ void f_member_array(void) {
             break;
           }
           continue;
+#ifndef NO_BUFFER_TYPE
         case T_BUFFER:
           if (find->u.buf == sv->u.buf) {
             break;
           }
           continue;
+#endif
         default:
           if (sv->type == T_OBJECT && (sv->u.ob->flags & O_DESTRUCTED)) {
             assign_svalue(sv, &const0u);
@@ -1723,7 +1742,6 @@ void f_read_bytes(void) {
   if (str == nullptr) {
     push_number(0);
   } else {
-    u8_sanitize(str);
     push_malloced_string(str);
   }
 }
@@ -1790,7 +1808,6 @@ void f_read_file(void) {
   if (!str) {
     push_svalue(&const0);
   } else {
-    u8_sanitize(str);
     push_malloced_string(str);
   }
 }
@@ -1809,13 +1826,16 @@ void f_receive(void) {
       add_message(current_object, sp->u.string, len);
     }
     free_string_svalue(sp--);
-  } else {
+  }
+#ifndef NO_BUFFER_TYPE
+  else {
     if (current_object->interactive) {
       add_message(current_object, reinterpret_cast<char *>(sp->u.buf->item), sp->u.buf->size);
     }
 
     free_buffer((sp--)->u.buf);
   }
+#endif
 }
 #endif
 
@@ -2474,7 +2494,7 @@ void f_shutdown(void) {
 
 #ifdef F_SIZEOF
 void f_sizeof(void) {
-  size_t i;
+  int i;
 
   switch (sp->type) {
     case T_CLASS:
@@ -2489,16 +2509,16 @@ void f_sizeof(void) {
       i = sp->u.map->count;
       free_mapping(sp->u.map);
       break;
+#ifndef NO_BUFFER_TYPE
     case T_BUFFER:
       i = sp->u.buf->size;
       free_buffer(sp->u.buf);
       break;
-    case T_STRING: {
-      auto success = u8_egc_count(sp->u.string, &i);
-      DEBUG_CHECK(!success, "Invalid UTF8 string!");
+#endif
+    case T_STRING:
+      i = SVALUE_STRLEN(sp);
       free_string_svalue(sp);
       break;
-    }
     default:
       i = 0;
       free_svalue(sp, "f_sizeof");
@@ -2962,6 +2982,7 @@ void f__to_int(void) {
       sp->type = T_NUMBER;
       break;
     }
+#ifndef NO_BUFFER_TYPE
     case T_BUFFER:
       if (sp->u.buf->size < sizeof(int)) {
         free_buffer(sp->u.buf);
@@ -2974,6 +2995,7 @@ void f__to_int(void) {
         free_buffer(sp->u.buf);
         put_number(hostint);
       }
+#endif
   }
 }
 #endif
@@ -3092,11 +3114,13 @@ void f_write_bytes(void) {
       break;
     }
 
+#ifndef NO_BUFFER_TYPE
     case T_BUFFER: {
       i = write_bytes((sp - 2)->u.string, (sp - 1)->u.number,
                       reinterpret_cast<char *>(sp->u.buf->item), sp->u.buf->size);
       break;
     }
+#endif
 
     case T_STRING: {
       i = write_bytes((sp - 2)->u.string, (sp - 1)->u.number, sp->u.string, SVALUE_STRLEN(sp));
@@ -3104,7 +3128,11 @@ void f_write_bytes(void) {
     }
 
     default: {
+#ifdef NO_BUFFER_TYPE
+      bad_argument(sp, T_STRING | T_NUMBER, 3, F_WRITE_BYTES);
+#else
       bad_argument(sp, T_BUFFER | T_STRING | T_NUMBER, 3, F_WRITE_BYTES);
+#endif
     }
   }
   free_svalue(sp--, "f_write_bytes");
@@ -3356,11 +3384,9 @@ void f_defer() {
 
 #ifdef F_CRYPT
 void f_crypt(void) {
-  const int SHA512_PREFIX_LEN = 3;
-  const int SHA512_SALT_LEN = 16;
-  char salt[SHA512_PREFIX_LEN + SHA512_SALT_LEN + 1];
+  char salt[3];
   const char *saltp = nullptr;
-  const char *choice = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789./";
+  const char *choice = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ./";
 
   if (sp->type == T_STRING) {
     // Support $1$, $2a$ (a,x,y), $5$, $6$
@@ -3378,11 +3404,7 @@ void f_crypt(void) {
         }
       }
     } else if (SVALUE_STRLEN(sp) >= 2) {
-      // Compat: Old f_crypt only use first two character as key.
-      debug_message(
-          "old crypt() password detected, It is only using first 2 character as key and ignore "
-          "password beyond 8 characters, please upgrade to SHA512 using crypt(password) "
-          "immediately.\n");
+      // Old f_crypt only use first two key.
       salt[0] = sp->u.string[0];
       salt[1] = sp->u.string[1];
       salt[2] = '\0';
@@ -3391,13 +3413,9 @@ void f_crypt(void) {
   }
 
   if (saltp == nullptr) {
-    salt[0] = '$';
-    salt[1] = '6';
-    salt[2] = '$';
-    for (auto i = 0; i < SHA512_SALT_LEN; i++) {
-      salt[3 + i] = choice[random_number(strlen(choice))];
-    }
-    salt[sizeof(salt) - 1] = '\0';
+    salt[0] = choice[random_number(strlen(choice))];
+    salt[1] = choice[random_number(strlen(choice))];
+    salt[2] = '\0';
     saltp = salt;
   }
 
@@ -3432,9 +3450,7 @@ void f_oldcrypt(void) {
     salt[SALT_LEN] = 0;
     p = salt;
   }
-  debug_message(
-      "oldcrypt() is deprecated! it is using MD5 and unsafe, please upgrade your code to use "
-      "crypt(password).\n");
+
   res = string_copy(custom_crypt((sp - 1)->u.string, p, nullptr), "f_oldcrypt");
   pop_2_elems();
   push_malloced_string(res);

@@ -228,6 +228,9 @@ void read_config(char *filename) {
   scan_config_line("mudlib directory : %[^\n]", tmp, 1);
   CONFIG_STR(__MUD_LIB_DIR__) = alloc_cstring(tmp, "config file: mld");
 
+  scan_config_line("binary directory : %[^\n]", tmp, 1);
+  CONFIG_STR(__BIN_DIR__) = alloc_cstring(tmp, "config file: bd");
+
   scan_config_line("log directory : %[^\n]", tmp, 1);
   CONFIG_STR(__LOG_DIR__) = alloc_cstring(tmp, "config file: ld");
 
@@ -239,6 +242,9 @@ void read_config(char *filename) {
 
   scan_config_line("simulated efun file : %[^\n]", tmp, 0);
   CONFIG_STR(__SIMUL_EFUN_FILE__) = alloc_cstring(tmp, "config file: sef");
+
+  scan_config_line("swap file : %[^\n]", tmp, 1);
+  CONFIG_STR(__SWAP_FILE__) = alloc_cstring(tmp, "config file: sf");
 
   scan_config_line("debug log file : %[^\n]", tmp, -1);
   CONFIG_STR(__DEBUG_LOG_FILE__) = alloc_cstring(tmp, "config file: dlf");
@@ -292,6 +298,10 @@ void read_config(char *filename) {
           if (!strcmp(kind, "telnet")) {
             external_port[i].kind = PORT_TELNET;
           } else if (!strcmp(kind, "binary")) {
+#ifdef NO_BUFFER_TYPE
+            fprintf(stderr, "binary ports unavailable with NO_BUFFER_TYPE defined.\n");
+            exit(-1);
+#endif
             external_port[i].kind = PORT_BINARY;
           } else if (!strcmp(kind, "ascii")) {
             external_port[i].kind = PORT_ASCII;
@@ -299,8 +309,6 @@ void read_config(char *filename) {
             external_port[i].kind = PORT_MUD;
           } else if (!strcmp(kind, "websocket")) {
             external_port[i].kind = PORT_WEBSOCKET;
-            scan_config_line("websocket http dir : %[^\n]", tmp, kMustHave);
-            CONFIG_STR(__RC_WEBSOCKET_HTTP_DIR__) = alloc_cstring(tmp, "config file: whd");
           } else {
             fprintf(stderr, "Unknown kind of external port: %s\n", kind);
             exit(-1);
@@ -334,8 +342,6 @@ void read_config(char *filename) {
   scan_config_line("reserved size : %d\n", tmp, -2);
   scan_config_line("fd6 kind : %[^\n]", tmp, -2);
   scan_config_line("fd6 port : %d\n", tmp, -2);
-  scan_config_line("binary directory : %[^\n]", tmp, kWarnFound);
-  scan_config_line("swap file : %[^\n]", tmp, kWarnFound);
 
   // Give all obsolete (thus untouched) config strings a value.
   for (auto &i : config_str) {

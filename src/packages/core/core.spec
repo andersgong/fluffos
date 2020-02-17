@@ -5,7 +5,11 @@
  *
  */
 
+#ifdef NO_BUFFER_TYPE
+#define OR_BUFFER
+#else
 #define OR_BUFFER | buffer
+#endif
 
 /* These next few efuns are used internally; do not remove them.
  * The leading _ is used to keep track of which efuns should exist,
@@ -47,6 +51,11 @@ object *all_previous_objects previous_object(int default: -1);
 mixed *call_stack(int default: 0);
 int sizeof(mixed);
 int strlen sizeof(string);
+#ifdef USE_ICONV
+int strwidth(string);
+#else
+int strwidth sizeof(string);
+#endif
 void destruct(object default: F__THIS_OBJECT);
 string file_name(object default: F__THIS_OBJECT);
 string capitalize(string);
@@ -157,8 +166,10 @@ int objectp(mixed);
 int classp(mixed);
 string typeof(mixed);
 
+#ifndef NO_BUFFER_TYPE
 int bufferp(mixed);
 buffer allocate_buffer(int);
+#endif
 
 int inherits(string, object default: F__THIS_OBJECT);
 void replace_program(string);
@@ -173,8 +184,10 @@ int crc32(string OR_BUFFER);
 
 /* commands operating on files */
 
+#ifndef NO_BUFFER_TYPE
 mixed read_buffer(string | buffer, void | int, void | int);
 int write_buffer(string | buffer, int, string | buffer | int);
+#endif
 int write_file(string, string, int default:0);
 int rename(string, string);
 int write_bytes(string, int, string);
@@ -353,13 +366,15 @@ mapping *function_profile(object default:F__THIS_OBJECT);
 #endif
 
 int resolve(string, string | function);
-string set_encoding(string | void);
-string query_encoding();
-string string_decode(buffer, string);
-buffer string_encode(string, string);
-buffer buffer_transcode(buffer, string, string);
-
+#ifdef USE_ICONV
+int set_encoding(string);
+string to_utf8(string, string);
+string utf8_to(string, string);
+int *str_to_arr(string);
+string arr_to_str(int *);
+#endif
 void act_mxp();
+void websocket_handshake_done();
 void request_term_type();
 void start_request_term_type();
 void request_term_size(void | int);

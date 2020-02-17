@@ -32,13 +32,10 @@ option(DEBUG OFF)
 option(DEBUGMALLOC ${DEBUG})
 # End of list of compile options.
 
-# Globally enforce CXX17 and C11
+# Globally enforce CXX17
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_C_EXTENSIONS OFF)
 
 # Setup include directoires
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
@@ -50,17 +47,18 @@ endforeach ()
 
 set(CMAKE_ENABLE_EXPORTS ON)
 
-if (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU" OR ${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" OR ${CMAKE_CXX_COMPILER_ID} STREQUAL "AppleClang")
+if (${CMAKE_C_COMPILER_ID} STREQUAL "GNU" OR ${CMAKE_C_COMPILER_ID} STREQUAL "Clang" OR ${CMAKE_C_COMPILER_ID} STREQUAL "AppleClang")
   foreach (lang C CXX)
     set(CMAKE_${lang}_FLAGS_DEBUG "-O0 -g3")
     # include (minimal) debug information even for RELEASE build.
-    set(CMAKE_${lang}_FLAGS_RELEASE "-O3 -DNDEBUG -g")
+    set(CMAKE_${lang}_FLAGS_RELEASE "-O3 -DNDEBUG -g1")
     set(CMAKE_${lang}_FLAGS_RELWITHDEBINFO "${CMAKE_${lang}_FLAGS_RELEASE}")
   endforeach ()
 
   # Compile options
   add_compile_options(
     "-fno-omit-frame-pointer"
+    # We use GNU extensions
     "-D_GNU_SOURCE"
     # strict aliasing is bad!
     "-fno-strict-aliasing"
@@ -71,7 +69,7 @@ if (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU" OR ${CMAKE_CXX_COMPILER_ID} STREQUAL
   if (ENABLE_SANITIZER)
     add_compile_options("-fsanitize=address,undefined")
     # add_linker_options is only avaiable cmake 3.13
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address,undefined")
+    set(CMAKE_EXE_LINKER_FLAGS "-fsanitize=address,undefined")
   else ()
     add_compile_options(
       "-D_FORTIFY_SOURCE=2"
@@ -112,12 +110,13 @@ if (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU" OR ${CMAKE_CXX_COMPILER_ID} STREQUAL
     "-Wextra"
     "-Wformat"
     "-Werror=format-security"
-    $<$<COMPILE_LANGUAGE:C>:-Werror=implicit-function-declaration>
+    "-Werror=implicit-function-declaration"
     # Turn off some warnings from GCC.
     "-Wno-char-subscripts"
     "-Wno-sign-compare"
+    #"-Wno-return-type"
     "-Wno-unused-parameter"
-    # TODO: Code has a lot of implicit zero initializations
+    # TODO: Code has a lot of implict zero initilizations
     "-Wno-missing-field-initializers"
     # features
     "-fdiagnostics-show-option"
@@ -140,24 +139,13 @@ endif()
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # STATIC
-IF(WIN32)
-  set(STATIC ON)
-  message(STATUS "Default to build static on windows!")
-ENDIF()
-
 if (STATIC)
-  message(STATUS "Linking static driver.")
+  message(STATUS "Linking driver STATICLY.")
   if (WIN32)
     set(CMAKE_FIND_LIBRARY_SUFFIXES .lib .a ${CMAKE_FIND_LIBRARY_SUFFIXES})
-  elseif (APPLE)
-    message(FATAL_ERROR "Build staticly on OSX is not supported")
   else ()
     set(CMAKE_FIND_LIBRARY_SUFFIXES .a ${CMAKE_FIND_LIBRARY_SUFFIXES})
   endif ()
-  # target_link_options only available at cmake 3.13.3
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static -static-libgcc -static-libstdc++ -Wl,-Bstatic")
-else()
-  message(STATUS "Linking dynamic driver.")
 endif ()
 # end of STATIC
 
@@ -172,24 +160,6 @@ endif ()
 
 add_subdirectory(thirdparty/filesystem EXCLUDE_FROM_ALL)
 include_directories(thirdparty/filesystem/include)
-
-set(LWS_WITH_SHARED OFF CACHE BOOL "" FORCE)
-set(LWS_WITHOUT_TESTAPPS ON CACHE BOOL "" FORCE)
-set(LWS_IPV6 ON CACHE BOOL "" FORCE)
-set(LWS_WITH_LIBEVENT ON CACHE BOOL "" FORCE)
-set(LWS_STATIC_PIC ON CACHE BOOL "" FORCE)
-set(LWS_WITH_DIR OFF CACHE BOOL "" FORCE)
-set(LWS_WITH_SSL OFF CACHE BOOL "" FORCE)
-set(LWS_WITHOUT_TESTAPPS ON CACHE BOOL "" FORCE)
-set(LWS_WITHOUT_TEST_SERVER ON CACHE BOOL "" FORCE)
-set(LWS_WITHOUT_TEST_SERVER_EXTPOLL ON CACHE BOOL "" FORCE)
-set(LWS_WITHOUT_TEST_PING ON CACHE BOOL "" FORCE)
-set(LWS_WITHOUT_TEST_CLIENT ON CACHE BOOL "" FORCE)
-set(LWS_WITH_LEJP OFF CACHE BOOL "" FORCE)
-set(LWS_WITH_LEJP_CONF OFF CACHE BOOL "" FORCE)
-add_subdirectory(thirdparty/libwebsockets EXCLUDE_FROM_ALL)
-include_directories("thirdparty/libwebsockets/include" SYSTEM)
-include_directories("${CMAKE_CURRENT_BINARY_DIR}/thirdparty/libwebsockets")
 
 INCLUDE(CheckIncludeFileCXX)
 # usage: CHECK_INCLUDE_FILES (<header> <RESULT_VARIABLE> )
@@ -213,20 +183,9 @@ set(GENERATED_HEADERS
   )
 
 # Libraries
-if(WIN32)
-  find_package(Libevent 2.0 REQUIRED COMPONENTS libevent)
-else()
-  find_package(Libevent 2.0 REQUIRED COMPONENTS libevent pthreads)
-endif()
+find_package(Libevent 2.0 REQUIRED COMPONENTS libevent)
 # multiple packages uses this, so we simply do a global inclusion
 include_directories(SYSTEM ${LIBEVENT_INCLUDE_DIR})
-
-# Libraries
-find_package(ICU REQUIRED COMPONENTS uc dt)
-# Make ICU use utf-8 internally
-add_compile_options("-DU_CHARSET_IS_UTF8=1")
-# multiple packages uses this, so we simply do a global inclusion too.
-include_directories(SYSTEM ${ICU_INCLUDE_DIRS})
 
 # Build phase
 
@@ -275,8 +234,8 @@ add_custom_command(
 
 add_custom_command(
   OUTPUT "grammar.autogen.y"
-  COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/tools/make_grammar.sh" "${CMAKE_CURRENT_SOURCE_DIR}/../" "${CMAKE_CURRENT_SOURCE_DIR}/compiler/internal/grammar.y.pre" "${CMAKE_CXX_COMPILER}" "-I${CMAKE_CURRENT_BINARY_DIR}" "-I${CMAKE_CURRENT_SOURCE_DIR}"
-  DEPENDS "tools/make_grammar.sh" "compiler/internal/grammar.y.pre"
+  COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/tools/make_grammar.sh" "${CMAKE_CURRENT_SOURCE_DIR}/../" "${CMAKE_CURRENT_SOURCE_DIR}/vm/internal/compiler/grammar.y.pre" "${CMAKE_CXX_COMPILER}" "-I${CMAKE_CURRENT_BINARY_DIR}" "-I${CMAKE_CURRENT_SOURCE_DIR}"
+  DEPENDS "tools/make_grammar.sh" "vm/internal/compiler/grammar.y.pre"
 )
 
 find_package(BISON REQUIRED)
@@ -292,12 +251,11 @@ set(GENERATRED_GRAMMAR_FILES
 set(SRC
   "backend.cc"
   "comm.cc"
+  "fliconv.cc"
   "main.cc"
   "mainlib.cc"
   "user.cc"
   "net/telnet.cc"
-  "net/websocket.cc"
-  "net/ws_ascii.cc"
   "base/internal/debugmalloc.cc"
   "base/internal/external_port.cc"
   "base/internal/file.cc"
@@ -310,13 +268,7 @@ set(SRC
   "base/internal/stats.cc"
   "base/internal/stralloc.cc"
   "base/internal/strput.cc"
-  "base/internal/strutils.cc"
-  "compiler/internal/compiler.cc"
-  "compiler/internal/generate.cc"
-  "compiler/internal/icode.cc"
-  "compiler/internal/lex.cc"
-  "compiler/internal/scratchpad.cc"
-  "compiler/internal/trees.cc"
+  "vm/internal/apply.cc"
   "vm/internal/base/apply_cache.cc"
   "vm/internal/base/array.cc"
   "vm/internal/base/buffer.cc"
@@ -327,7 +279,12 @@ set(SRC
   "vm/internal/base/object.cc"
   "vm/internal/base/program.cc"
   "vm/internal/base/svalue.cc"
-  "vm/internal/apply.cc"
+  "vm/internal/compiler/compiler.cc"
+  "vm/internal/compiler/generate.cc"
+  "vm/internal/compiler/icode.cc"
+  "vm/internal/compiler/lex.cc"
+  "vm/internal/compiler/scratchpad.cc"
+  "vm/internal/compiler/trees.cc"
   "vm/internal/eval_limit.cc"
   "vm/internal/posix_timers.cc"
   "vm/internal/master.cc"
@@ -379,29 +336,42 @@ if (ENABLE_DTRACE)
   target_link_libraries(driver PRIVATE tracing)
 endif ()
 
-target_link_libraries(driver PRIVATE ${LIBWEBSOCKETS_LIBRARIES_STATIC})
+# Winsocks
+IF (WIN32)
+  target_link_libraries(driver PRIVATE wsock32 ws2_32)
+ENDIF ()
+
 # Third party libraries
 add_subdirectory(thirdparty/libtelnet EXCLUDE_FROM_ALL)
 target_link_libraries(driver PUBLIC libtelnet)
 
-target_link_libraries(driver PUBLIC ${ICU_LIBRARIES})
-
 add_subdirectory(thirdparty/backward-cpp EXCLUDE_FROM_ALL)
 add_backward(driver)
-IF (WIN32)
-  target_link_libraries(driver PUBLIC backward)
-ENDIF ()
+
+# Link statictly
+if (STATIC)
+  if (WIN32)
+    # TODO
+    message(FATAL_ERROR "Build staticly on Windows is not currently supported")
+  else ()
+    if (APPLE)
+      message(FATAL_ERROR "Build staticly on OSX is not supported")
+    else ()
+      # target_link_options only avaiable at cmake 3.13.3
+      target_link_libraries(driver PUBLIC "-static-libgcc -static-libstdc++ -Wl,-Bstatic")
+    endif ()
+  endif ()
+endif ()
 
 # JEMALLOC
 if (CYGWIN)
   set(USE_JEMALLOC OFF)
   message(STATUS "JEMALLOC is not supported on CYGWIN.")
 endif ()
-if(ENABLE_SANITIZER)
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(USE_JEMALLOC OFF)
-  message(STATUS "AddressSanitizer doesn't work with JEMALLOC, force disabling!")
-endif()
-
+  message(STATUS "JEMALLOC is disabled on debug build.")
+endif ()
 if (USE_JEMALLOC)
   find_package(jemalloc REQUIRED)
   set(HAVE_JEMALLOC TRUE) # used in config.h.in
@@ -413,17 +383,8 @@ endif ()
 # libevent
 target_link_libraries(driver PUBLIC ${LIBEVENT_LIBRARIES})
 
-# Platform Libraries
-
-# Winsocks
-IF (WIN32)
-  target_link_libraries(driver PRIVATE ws2_32)
-ENDIF ()
-
-if(NOT WIN32)
-  find_package(Threads REQUIRED)
-  target_link_libraries(driver PRIVATE Threads::Threads)
-endif()
+find_package(Threads REQUIRED)
+target_link_libraries(driver PRIVATE Threads::Threads)
 
 include(CheckLibraryExists)
 CHECK_LIBRARY_EXISTS(rt clock_gettime "time.h" HAVE_CLOCK_GETTIME_IN_RT)
@@ -443,18 +404,6 @@ print_target_properties(driver)
 
 install(TARGETS driver
   RUNTIME DESTINATION bin)
-
-# LPC stdlib files
-install(DIRECTORY ../testsuite/std
-        DESTINATION bin)
-
-# LPC include files
-install(DIRECTORY include
-        DESTINATION bin)
-
-# Websocket http files
-install(DIRECTORY www
-        DESTINATION bin)
 
 if (NOT WIN32)
   add_executable(portbind "portbind.cc")

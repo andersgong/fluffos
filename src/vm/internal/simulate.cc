@@ -15,7 +15,7 @@
 #include "user.h"     // for users_foreach, FIXME
 #include "vm/internal/otable.h"
 #include "vm/internal/base/machine.h"
-#include "compiler/internal/lex.h"  // for total_lines, FIXME
+#include "vm/internal/compiler/lex.h"  // for total_lines, FIXME
 
 #include "packages/core/add_action.h"
 #include "packages/core/call_out.h"
@@ -58,6 +58,8 @@ void startshutdownMudOS(int sig) { MudOS_is_being_shut_down = 1; }
  * in an interrupt.
  */
 void shutdownMudOS(int exit_code) {
+  int i;
+
   shout_string("FluffOS driver shouts: shutting down immediately.\n");
 
 #ifdef PACKAGE_MUDLIB_STATS
@@ -912,6 +914,7 @@ void destruct_object(object_t *ob) {
 #endif
 #ifndef NO_SNOOP
   if (ob->flags & O_SNOOP) {
+    int i;
     users_foreach([ob](interactive_t *user) {
       if (user->snooped_by == ob) {
         user->snooped_by = nullptr;
@@ -1406,9 +1409,11 @@ void print_svalue(svalue_t *arg) {
       case T_FUNCTION:
         tell_object(command_giver, "<FUNCTION>", strlen("<FUNCTION>"));
         break;
+#ifndef NO_BUFFER_TYPE
       case T_BUFFER:
         tell_object(command_giver, "<BUFFER>", strlen("<BUFFER>"));
         break;
+#endif
       default:
         tell_object(command_giver, "<UNKNOWN>", strlen("<UNKNOWN>"));
         break;
@@ -1630,7 +1635,7 @@ void free_sentence(sentence_t *p) {
   sent_free = p;
 }
 
-[[noreturn]] void fatal(const char *fmt, ...) {
+void fatal(const char *fmt, ...) {
   static int in_fatal = 0;
   char msg_buf[2049];
   va_list args;
@@ -1678,7 +1683,7 @@ void free_sentence(sentence_t *p) {
   in_fatal = 0;
 
   signal(SIGABRT, SIG_DFL);
-  std::abort();
+  abort();
 }
 
 static int num_error = 0;
@@ -1698,7 +1703,7 @@ static int num_mudlib_error = 0;
  * want to replace it with the system's error string.
  */
 
-[[noreturn]] void throw_error() {
+void throw_error() {
   if (((current_error_context->save_csp + 1)->framekind & FRAME_MASK) == FRAME_CATCH) {
     throw("throw error");
     fatal("Throw_error failed!");
@@ -1819,7 +1824,7 @@ void _error_handler(char *err) {
 
 }  // namespace
 
-[[noreturn]] void error_handler(char *err) {
+void error_handler(char *err) {
 /* in case we're going to jump out of load_object */
 #ifndef NO_ENVIRONMENT
   restrict_destruct = nullptr;
@@ -1922,7 +1927,7 @@ exit:
   throw("BUG: Impossible to get here.");
 }
 
-[[noreturn]] void error_needs_free(char *s) {
+void error_needs_free(char *s) {
   char err_buf[2048];
   strncpy(err_buf + 1, s, 2047);
   err_buf[0] = '*'; /* all system errors get a * at the start */
@@ -1932,7 +1937,7 @@ exit:
   error_handler(err_buf);
 }
 
-[[noreturn]] void error(const char *const fmt, ...) {
+void error(const char *const fmt, ...) {
   char err_buf[2048];
   va_list args;
 

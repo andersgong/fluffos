@@ -83,20 +83,17 @@ int ObjectTable::showStatus(outbuffer_t* out, int verbose) {
       ss << "Memory(bytes):     " << objects_.size() * sizeof(Value) << "\n";
       ss << "Bucket count:    " << objects_.bucket_count() << "\n";
       ss << "Load factor:     " << objects_.load_factor() << "\n";
+      outbuf_add(out, ss.str().c_str());
       break;
 
     case 0:
       ss << "Memory used(bytes):     " << objects_.size() * sizeof(Value) << "\n";
+      outbuf_add(out, ss.str().c_str());
       break;
 
     default:
       break;
   }
-  {
-    std::string tmp = ss.str();
-    outbuf_add(out, tmp.c_str());
-  }
-
   return objects_.size() * sizeof(Value);
 }
 

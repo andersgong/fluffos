@@ -199,8 +199,6 @@ set(_exe_fallback_path
   /usr/local/bin
   /opt/mysql/mysql/bin
   /usr/local/mysql/bin
-  # brew install mysql-client
-  /usr/local/opt/mysql-client/bin
   )
 
 set(_include_fallback_path
@@ -210,8 +208,6 @@ set(_include_fallback_path
   /opt/mysql/mysql/include/mysql
   /usr/local/mysql/include
   /usr/local/mysql/include/mysql
-  # brew install mysql-client
-  /usr/local/opt/mysql-client/include
   $ENV{ProgramFiles}/MySQL/*/include
   $ENV{SystemDrive}/MySQL/*/include
   )
@@ -223,8 +219,6 @@ set(_lib_fallback_path
   /usr/local/mysql/lib/mysql
   /opt/mysql/mysql/lib
   /opt/mysql/mysql/lib/mysql
-  # brew install mysql-client
-  /usr/local/opt/mysql-client/lib
   $ENV{ProgramFiles}/MySQL/*/lib/${_lib_suffix_dist}
   $ENV{ProgramFiles}/MySQL/*/lib
   $ENV{SystemDrive}/MySQL/*/lib/${_lib_suffix_dist}

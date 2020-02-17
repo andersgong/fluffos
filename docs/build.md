@@ -5,25 +5,13 @@ title: Build
 
 ## Environment
 
-v2019 supports building on ubuntu 18.04+ (including WSL), and OSX latest, MSYS2/mingw64.
+v2019 will support ubuntu 18.04+ (including Win10+WSL), and OSX/BSD, native windows build with MSVC 2017 is under development.
 
-Compilers: FluffOS v2019 uses C++17 and C11, which requires at least GCC 7+ or LLVM clang 4+.
+Compilers: FluffOS v2019 uses C++17, which requires at least GCC 7+ or LLVM clang 4+.
 
-System Library Requirement:
-1. Libevent 2.0+.
-1. ICU: FluffOS uses ICU for UTF-8 and transcoding support.
-1. jemalloc: Release build use JEMALLOC by default, and is highly recommended in production.
-1. OpenSSL (if PACAKGE_CRYPTO enabled)
-1. PCRE (if PACKGAGE_PCRE enabled)
-1. MysqlClient (if PACKAGE_DB enabled)
+Library: libevent 2.0+, additional libraries depends on the package selection. 
 
-Bundled thirdparty library:
-1. libtelnet: telnet protocol support
-1. libwebsocket: websocket support.
-1. ghc filesystem: polyfill for std::filesystem
-1. backward-cpp: stacktrace
-1. utf8_decoder_dfa: fast utf8 validation.
-1. widecharwidth: wcwidth with unicode 11
+jemalloc: use JEMALLOC is highly recommended in production. otherwise you may run into memory issue.
 
 ## BUILD (v2019)
 
@@ -34,16 +22,15 @@ is best effort only.
 
     # Install all libs
     $ sudo apt update
-    $ sudo apt install build-essential bison \
-    libevent-dev libmysqlclient-dev libpcre3-dev libpq-dev \
-    libsqlite3-dev libssl-dev libz-dev libjemalloc-dev
+    $ sudo apt install build-essential bison libevent-dev libjemalloc-dev \
+    libmysqlclient-dev libpcre3-dev libpq-dev libsqlite3-dev libssl-dev libz-dev
 
 To Build fluffOS v2019 (CMake)
 
     # 1. checkout git repo
     $ git clone https://github.com/fluffos/fluffos.git
     $ cd fluffos
-    $ git checkout v2019 #(or an v2019 release tag)
+    $ git checkout master #(or v2019 branch or any specfic release tag)
 
     # 2. Upgrade your cmake
     $ sudo pip install --upgrade cmake
@@ -54,7 +41,7 @@ To Build fluffOS v2019 (CMake)
     $ cmake ..
     $ make install
 
-    # 4. find the two built binary and websocket www directory in ./bin/
+    # 4. find the two built binary in bin/driver and bin/portbind
 
 Packages
 
@@ -63,32 +50,25 @@ Packages
 
 Advanced Build features (v2019)
 
-    # By default driver in release mode will optimize for running on current CPU only.
-    # if you wish to cross compile for other machines, turn off MARCH_NATIVE.
+    # By default driver will link dynamic libraries and optimize for running on current CPU only.
+    # if you wish to cross compile for other machines, turn off MARCH_NATIVE and turn
+    # on STATIC.
 
-    $ cmake .. -DMARCH_NATIVE=OFF
-
-    # Then you can copy driver to another server with different CPU and it still works.
-
-    # Static linking: you can pass -DSTATIC=ON to force driver to link staticly for all libraries, this will only work
-    # in a specilized enviroment like alpine linux for now.
+    $ cmake .. -DMARCH_NATIVE=OFF -DSTATIC=ON
 
     # Check the result file to make sure it is an static file
 
     $ ldd bin/driver
     not a dynamic executable
-
+    
 ## OSX
+
     # 1. Install Homebrew, goto https://brew.sh/ and follow instructions!
-
-    # 2. install libraries (checkout https://github.com/fluffos/fluffos/blob/master/.github/workflows/ci-osx.yml if
-     you have issue)
-    $ brew install cmake pkg-config mysql pcre libgcrypt libevent openssl jemalloc icu4c
-
-    # 3. build same as under linux, you will need to pass two environment variables
-    $ make build && cd build
-    $ OPENSSL_ROOT_DIR="/usr/local/opt/openssl" ICU_ROOT="/usr/local/opt/icu4c" cmake ..
-    $ make install
-
+    
+    # 2. install libraries (checkout .github/workflow/ci-osx.yml)
+    $ brew install cmake pkg-config mysql pcre libgcrypt libevent openssl jemalloc
+    
+    # 3. build same as under linux
+    
 ## Windows
-    # see https://forum.fluffos.info/t/compiling-fluffos-v2019-under-osx-windows-msys2-mingw64/601
+    # currently under development

@@ -24,11 +24,11 @@
 #endif
 #endif
 #include <unistd.h>
+
 #ifdef HAVE_JEMALLOC
 #define JEMALLOC_MANGLE
 #include <jemalloc/jemalloc.h>  // for mallctl
 #endif
-#include <unicode/uversion.h>
 
 #include "packages/core/dns.h"                   // for init_dns_event_base.
 #include "vm/vm.h"                               // for push_constant_string, etc
@@ -113,9 +113,6 @@ void print_version_and_time() {
 #else
   std::cout << "Jemalloc is disabled, this is not suitable for production." << std::endl;
 #endif
-  std::cout << "ICU Version: " << U_ICU_VERSION << std::endl;
-
-#ifndef _WIN32
 #if BACKWARD_HAS_DW == 1
   std::cout << "Backtrace support: libdw." << std::endl;
 #elif BACKWARD_HAS_BFD == 1
@@ -124,7 +121,6 @@ void print_version_and_time() {
   std::cout << "libdw or libbfd is not found, you will only get very limited crash stacktrace."
             << std::endl;
 #endif
-#endif /* _WIN32 */
 }
 
 void sig_cld(int sig) {
@@ -286,19 +282,12 @@ int driver_main(int argc, char **argv);
 void init_win32() {
 #ifdef _WIN32
   WSADATA wsa_data;
-  int err = WSAStartup(0x0202, &wsa_data);
-  if (err != 0) {
-    /* Tell the user that we could not find a usable */
-    /* Winsock DLL.                                  */
-    printf("WSAStartup failed with error: %d\n", err);
-    exit(-1);
-  }
+  WSAStartup(0x0201, &wsa_data);
 #endif
 }
 
 int driver_main(int argc, char **argv) {
-  // backward-cpp doesn't yet work on win32
-#ifndef _WIN32
+#ifndef __WIN32
   // register crash handlers
   backward::SignalHandling sh;
   if (!sh.loaded()) {
@@ -306,10 +295,7 @@ int driver_main(int argc, char **argv) {
               << std::endl;
   }
 #endif
-
-#ifdef _WIN32
   init_win32();
-#endif
 
   auto base = init_main(argc, argv);
 

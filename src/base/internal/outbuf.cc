@@ -71,7 +71,7 @@ void outbuf_addv(outbuffer_t *outbuf, const char *format, ...) {
   va_list args;
 
   va_start(args, format);
-  vsnprintf(buf, sizeof(buf), format, args);
+  vsnprintf(buf, LARGEST_PRINTABLE_STRING, format, args);
   va_end(args);
 
   if (!outbuf) {

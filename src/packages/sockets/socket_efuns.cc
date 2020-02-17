@@ -319,6 +319,7 @@ int find_new_socket() {
  */
 int socket_create(enum socket_mode mode, svalue_t *read_callback, svalue_t *close_callback) {
   int type, i, fd;
+#ifndef NO_BUFFER_TYPE
   int binary = 0;
 
   if (mode == STREAM_BINARY) {
@@ -328,6 +329,7 @@ int socket_create(enum socket_mode mode, svalue_t *read_callback, svalue_t *clos
     binary = 1;
     mode = DATAGRAM;
   }
+#endif
   switch (mode) {
     case MUD:
     case STREAM:
@@ -355,19 +357,19 @@ int socket_create(enum socket_mode mode, svalue_t *read_callback, svalue_t *clos
     if (evutil_make_listen_socket_reuseable(fd) == -1) {
       debug(sockets, "socket_create: setsockopt error: %s.\n",
             evutil_socket_error_to_string(evutil_socket_geterror(fd)));
-      evutil_closesocket(fd);
+      close(fd);
       return EESETSOCKOPT;
     }
     if (evutil_make_socket_nonblocking(fd) == -1) {
       debug(sockets, "socket_create: set_socket_nonblocking error: %s.\n",
             evutil_socket_error_to_string(evutil_socket_geterror(fd)));
-      evutil_closesocket(fd);
+      close(fd);
       return EENONBLOCK;
     }
     if (evutil_make_socket_closeonexec(fd) == -1) {
       debug(sockets, "socket_create: make_socket_closeonexec error: %s.\n",
             evutil_socket_error_to_string(evutil_socket_geterror(fd)));
-      evutil_closesocket(fd);
+      close(fd);
       return EESETSOCKOPT;
     }
 
@@ -394,9 +396,11 @@ int socket_create(enum socket_mode mode, svalue_t *read_callback, svalue_t *clos
     set_write_callback(i, nullptr);
     set_close_callback(i, close_callback);
 
+#ifndef NO_BUFFER_TYPE
     if (binary) {
       lpc_socks[i].flags |= S_BINARY;
     }
+#endif
     lpc_socks[i].mode = mode;
     lpc_socks[i].state = STATE_UNBOUND;
     lpc_socks[i].owner_ob = current_object;
@@ -454,19 +458,19 @@ int socket_bind(int fd, int port, const char *addr) {
     auto mudip = CONFIG_STR(__MUD_IP__);
     if (mudip != nullptr && strlen(mudip) > 0) {
       debug(sockets, "socket_bind: binding to mud ip: %s.\n", mudip);
-      ret = evutil_getaddrinfo(mudip, service, &hints, &result);
+      ret = getaddrinfo(mudip, service, &hints, &result);
     } else {
       debug(sockets, "socket_bind: binding to any address.\n");
-      ret = evutil_getaddrinfo(nullptr, service, &hints, &result);
+      ret = getaddrinfo(nullptr, service, &hints, &result);
     }
     if (ret) {
-      debug(sockets, "socket_bind: error %s \n", evutil_gai_strerror(ret));
+      debug(sockets, "socket_bind: error %s \n", gai_strerror(ret));
       return EEBADADDR;
     }
 
     memcpy(&sockaddr, result->ai_addr, result->ai_addrlen);
     len = result->ai_addrlen;
-    evutil_freeaddrinfo(result);
+    freeaddrinfo(result);
   }
 
   if (bind(lpc_socks[fd].fd, reinterpret_cast<struct sockaddr *>(&sockaddr), len) == -1) {
@@ -776,6 +780,7 @@ int socket_write(int fd, svalue_t *message, const char *name) {
       debug(sockets, "socket_write: sending tcp message to %s\n",
             sockaddr_to_string((struct sockaddr *)&lpc_socks[fd].r_addr, lpc_socks[fd].r_addrlen));
       switch (message->type) {
+#ifndef NO_BUFFER_TYPE
         case T_BUFFER:
           len = message->u.buf->size;
           if (len == 0) {
@@ -788,6 +793,7 @@ int socket_write(int fd, svalue_t *message, const char *name) {
           }
           memcpy(buf, message->u.buf->item, len);
           break;
+#endif
         case T_STRING:
           len = SVALUE_STRLEN(message);
           if (len == 0) {
@@ -849,6 +855,7 @@ int socket_write(int fd, svalue_t *message, const char *name) {
           }
           break;
 
+#ifndef NO_BUFFER_TYPE
         case T_BUFFER:
           if ((off = sendto(lpc_socks[fd].fd, reinterpret_cast<char *>(message->u.buf->item),
                             message->u.buf->size, 0, reinterpret_cast<struct sockaddr *>(&addr),
@@ -858,6 +865,7 @@ int socket_write(int fd, svalue_t *message, const char *name) {
             return EESENDTO;
           }
           break;
+#endif
 
         default:
           return EETYPENOTSUPP;
@@ -1008,14 +1016,15 @@ void socket_read_select_handler(int fd) {
                                   sizeof(host), service, sizeof(service),
                                   NI_NUMERICHOST | NI_NUMERICSERV);
             if (ret) {
-              debug(sockets, "socket_read_select_handler: bad addr: %s", evutil_gai_strerror(ret));
+              debug(sockets, "socket_read_select_handler: bad addr: %s", gai_strerror(ret));
               addr[0] = '\0';
             } else {
               sprintf(addr, "%s %s", host, service);
             }
           }
           push_number(fd);
-          if (lpc_socks[fd].flags & S_BINARY || !u8_validate(buf)) {
+#ifndef NO_BUFFER_TYPE
+          if (lpc_socks[fd].flags & S_BINARY) {
             buffer_t *b;
 
             b = allocate_buffer(cc);
@@ -1026,9 +1035,11 @@ void socket_read_select_handler(int fd) {
               push_number(0);
             }
           } else {
-            u8_sanitize(buf);
+#endif
             copy_and_push_string(buf);
+#ifndef NO_BUFFER_TYPE
           }
+#endif
           copy_and_push_string(addr);
           debug(sockets, ("read_socket_handler: apply\n"));
           call_callback(fd, S_READ_FP, 3);
@@ -1143,6 +1154,7 @@ void socket_read_select_handler(int fd) {
           debug(sockets, "read_socket_handler: read %d bytes\n", cc);
           buf[cc] = '\0';
           push_number(fd);
+#ifndef NO_BUFFER_TYPE
           if (lpc_socks[fd].flags & S_BINARY) {
             buffer_t *b;
 
@@ -1155,9 +1167,11 @@ void socket_read_select_handler(int fd) {
               push_number(0);
             }
           } else {
-            u8_sanitize(buf);
+#endif
             copy_and_push_string(buf);
+#ifndef NO_BUFFER_TYPE
           }
+#endif
           debug(sockets, ("read_socket_handler: apply read callback\n"));
           call_callback(fd, S_READ_FP, 2);
           return;
@@ -1307,7 +1321,7 @@ int socket_close(int fd, int flags) {
     lpc_socks[fd].ev_data = nullptr;
   }
 
-  while (evutil_closesocket(lpc_socks[fd].fd) == -1 && errno == EINTR) {
+  while (close(lpc_socks[fd].fd) == -1 && errno == EINTR) {
     ; /* empty while */
   }
   if (lpc_socks[fd].r_buf != nullptr) {
@@ -1495,7 +1509,7 @@ static char *old_sockaddr_to_string(struct sockaddr *addr, socklen_t len) {
                         NI_NUMERICHOST | NI_NUMERICSERV);
 
   if (ret) {
-    debug(sockets, "inet_address: %s", evutil_gai_strerror(ret));
+    debug(sockets, "inet_address: %s", gai_strerror(ret));
     memset(result, 0, sizeof(result));
     return result;
   }
@@ -1599,7 +1613,7 @@ void lpc_socks_closeall() {
     if (sock.state == STATE_CLOSED) {
       continue;
     }
-    while (evutil_closesocket(sock.fd) == -1 && errno == EINTR) {
+    while (close(sock.fd) == -1 && errno == EINTR) {
       ;
     }
   }

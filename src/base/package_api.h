@@ -22,10 +22,10 @@
 #include "vm/internal/otable.h"
 
 // FIXME: sprintf needs query_instr_name
-#include "compiler/internal/lex.h"
+#include "vm/internal/compiler/lex.h"
 
 // FIXME: disassembler needs icode
-#include "compiler/internal/icode.h"
+#include "vm/internal/compiler/icode.h"
 
 // APIs to LPC programs
 #include "include/localtime.h"
@@ -40,8 +40,6 @@
 #include "backend.h"
 #include "comm.h"  // reverse API, FIXME
 #include "user.h"  // reverse API
-
-#include "net/telnet.h"  // Telnet related stuff
 
 // trace.cc
 extern struct array_t *get_svalue_trace();

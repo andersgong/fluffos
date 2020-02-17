@@ -12,9 +12,9 @@
 #include "vm/internal/eval_limit.h"
 #include "vm/internal/master.h"
 #include "vm/internal/simul_efun.h"
-#include "vm/internal/base/machine.h"    // for reset_machine
-#include "compiler/internal/lex.h"       // for add_predefines, fixme!
-#include "compiler/internal/compiler.h"  // for init_locals, fixme!
+#include "vm/internal/base/machine.h"       // for reset_machine
+#include "vm/internal/compiler/lex.h"       // for add_predefines, fixme!
+#include "vm/internal/compiler/compiler.h"  // for init_locals, fixme!
 
 #include "packages/core/replace_program.h"
 #ifdef PACKAGE_MUDLIB_STATS

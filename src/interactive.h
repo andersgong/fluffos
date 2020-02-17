@@ -35,9 +35,6 @@
 #define HANDSHAKE_COMPLETE 0x20000 /* websocket connected */
 #define USING_COMPRESS 0x40000     /* we've negotiated compress */
 
-// from ICU
-struct UConverter;
-
 struct interactive_t {
   struct object_t *ob; /* points to the associated object         */
 #if defined(F_INPUT_TO) || defined(F_GET_CHAR)
@@ -71,7 +68,14 @@ struct interactive_t {
   int iflags; /* interactive flags */
 
   // iconv handle
-  UConverter *trans;
+  struct translation *trans;
+
+  char ws_text[MAX_TEXT]; /* input buffer for interactive object     */
+  int ws_text_end;        /* first free char in buffer               */
+  int ws_text_start;      /* where we are up to in user command buffer */
+  int ws_size;
+  int ws_mask;
+  char ws_maskoffs;
 
   // libtelnet handle
   struct telnet_t *telnet;
@@ -79,9 +83,6 @@ struct interactive_t {
   // libevent event handle.
   struct bufferevent *ev_buffer;
   struct event *ev_command;
-
-  // libwebsocket handle
-  struct lws *lws;
 };
 
 #endif /* INTERACTIVE_H */

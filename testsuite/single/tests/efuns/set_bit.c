@@ -1,5 +1,4 @@
 void do_tests() {
-    /*
     string str;
     
     ASSERT(catch(set_bit("", 10000000000000)));
@@ -15,5 +14,5 @@ void do_tests() {
     str[0] = 5;
     ASSERT(catch(set_bit(str, 1)));
     str[0] = 255;
-    ASSERT(catch(set_bit(str, 1)));*/
+    ASSERT(catch(set_bit(str, 1)));
 }
