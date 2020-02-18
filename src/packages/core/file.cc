@@ -293,13 +293,13 @@ int write_file(const char *file, const char *str, int flags) {
     return 0;
   }
   if (flags & 2) {
-    gf = gzopen(file, (flags & 1) ? "w" : "a");
+    gf = gzopen(file, (flags & 1) ? "wb" : "ab");
     if (!gf) {
       error("Wrong permissions for opening file /%s for %s.\n\"%s\"\n", file,
             (flags & 1) ? "overwrite" : "append", strerror(errno));
     }
   } else {
-    f = fopen(file, (flags & 1) ? "w" : "a");
+    f = fopen(file, (flags & 1) ? "wb" : "ab");
     if (f == nullptr) {
       error("Wrong permissions for opening file /%s for %s.\n\"%s\"\n", file,
             (flags & 1) ? "overwrite" : "append", strerror(errno));
@@ -376,7 +376,7 @@ char *read_file(const char *file, int start, int lines) {
   theBuff[total_bytes_read] = '\0';
 
   // skip forward until the "start"-th line
-  char *ptr_start = theBuff;
+  const char *ptr_start = theBuff;
   while (start > 1 && ptr_start < theBuff + total_bytes_read) {
     if (*ptr_start == '\0') {
       debug(file, "read_file: file contains '\\0': %s.\n", file);
@@ -394,45 +394,31 @@ char *read_file(const char *file, int start, int lines) {
     return nullptr;
   }
 
-  char *ptr_end = nullptr;
-  // search forward for "lines" of '\n' for the end
-  if (lines == 0) {
-    ptr_end = ptr_start + read_file_max_size;
-    if (ptr_end > theBuff + total_bytes_read) {
-      ptr_end = theBuff + total_bytes_read + 1;
-    }
-  } else {
-    ptr_end = ptr_start;
-    while (lines > 0 && ptr_end < theBuff + total_bytes_read) {
+  char* ptr_end = (char*) theBuff + total_bytes_read;
+
+  if (lines > 0) {
+    // continue searching forward for "lines" of '\n'
+    ptr_end = (char *)ptr_start;
+    while (lines > 0 && ptr_end <= theBuff + total_bytes_read) {
       if (*ptr_end++ == '\n') {
         lines--;
       }
     }
-    // not enough lines, directly go to the end.
-    if (lines > 0) {
-      ptr_end = theBuff + total_bytes_read + 1;
-    }
+  }
+
+  // Truncate result to read_file_max_size
+  if (ptr_end > ptr_start + read_file_max_size) {
+    ptr_end = (char *) ptr_start + read_file_max_size;
   }
 
   *ptr_end = '\0';
-  // result is too big.
-  if (strlen(ptr_start) > read_file_max_size) {
-    debug(file, "read_file: result too big: %s.\n", file);
-    return nullptr;
-  }
 
   bool found_crlf = strchr(ptr_start, '\r') != nullptr;
   if (found_crlf) {
     // Deal with CRLF.
-    std::istringstream input(ptr_start);
-    std::ostringstream output;
-    for (std::string line; std::getline(input, line, '\n');) {
-      if (ends_with(line, "\r")) {
-        line = line.substr(0, line.length() - 1);
-      }
-      output << line << "\n";
-    }
-    return string_copy(output.str().c_str(), "read file: CRLF result");
+    std::string content(ptr_start);
+    ReplaceStringInPlace(content, "\r\n", "\n");
+    return string_copy(content.c_str(), "read file: CRLF result");
   }
   return string_copy(ptr_start, "read_file: result");
 }

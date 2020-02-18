@@ -76,18 +76,18 @@ int ObjectTable::showStatus(outbuffer_t* out, int verbose) {
   switch (verbose) {
     case 1:
       ss << "Object name hash table status:"
-         << "\n";
+         << std::endl;
       ss << "------------------------------"
-         << "\n";
-      ss << "Elements:        " << objects_.size() << "\n";
-      ss << "Memory(bytes):     " << objects_.size() * sizeof(Value) << "\n";
-      ss << "Bucket count:    " << objects_.bucket_count() << "\n";
-      ss << "Load factor:     " << objects_.load_factor() << "\n";
+         << std::endl;
+      ss << "Elements:        " << objects_.size() << std::endl;
+      ss << "Memory(bytes):     " << objects_.size() * sizeof(Value) << std::endl;
+      ss << "Bucket count:    " << objects_.bucket_count() << std::endl;
+      ss << "Load factor:     " << objects_.load_factor() << std::endl;
       outbuf_add(out, ss.str().c_str());
       break;
 
     case 0:
-      ss << "Memory used(bytes):     " << objects_.size() * sizeof(Value) << "\n";
+      ss << "Memory used(bytes):     " << objects_.size() * sizeof(Value) << std::endl;
       outbuf_add(out, ss.str().c_str());
       break;
 
