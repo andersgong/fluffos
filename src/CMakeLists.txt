@@ -1,7 +1,7 @@
 # List of compile options to tweak
 option(MARCH_NATIVE "use march=native for GCC" ON)
 option(STATIC "Build static version of driver" OFF)
-option(USE_JEMALLOC "Build driver with jemalloc support" ON)
+option(USE_JEMALLOC "Build driver with jemalloc support" OFF)
 option(ENABLE_SANITIZER "Build driver with sanitizer support" OFF)
 option(ENABLE_DTRACE "Build driver with dtrace (system-tap) support" OFF)
 # Packages

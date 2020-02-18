@@ -760,12 +760,24 @@ static int MySQL_connect(dbconn_t *c, const char *host, const char *database, co
                          const char *password) {
   int ret;
   MYSQL *tmp;
+  char* p = NULL;
 
   tmp = (MYSQL *)DMALLOC(sizeof(MYSQL), TAG_DB, "MySQL_connect");
   tmp = mysql_init(tmp);
+  if ((p = strstr(password, "##"))) {
+    if (0 != mysql_options(tmp, MYSQL_SET_CHARSET_NAME, p+2))//ÉèÖÃ×Ö·û¼¯
+    {
+      strncpy(c->mysql.errormsg, mysql_error(tmp), sizeof(c->mysql.errormsg));
+      c->mysql.errormsg[sizeof(c->mysql.errormsg) - 1] = 0;
+      FREE(tmp);
+      return 0;
+    }
+    *p = 0;
+  }
   *(c->mysql.errormsg) = 0;
   c->mysql.handle =
       mysql_real_connect(tmp, host, username, password, database, 0, MYSQL_SOCKET_ADDRESS, 0);
+  if (p) *p = '#';
   // c->mysql.handle = mysql_connect(tmp, host, username, password);
   if (!c->mysql.handle) {
     strncpy(c->mysql.errormsg, mysql_error(tmp), sizeof(c->mysql.errormsg));
